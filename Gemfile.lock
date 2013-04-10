@@ -1,0 +1,24 @@
+GEM
+  remote: http://rubygems.org/
+  specs:
+    eventmachine (1.0.3)
+    kgio (2.8.0)
+    rack (1.5.2)
+    rainbows (4.5.0)
+      kgio (~> 2.5)
+      rack (~> 1.1)
+      unicorn (~> 4.6, >= 4.6.2)
+    raindrops (0.10.0)
+    unicorn (4.6.2)
+      kgio (~> 2.6)
+      rack
+      raindrops (~> 0.7)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  eventmachine
+  rack
+  rainbows
+  unicorn
