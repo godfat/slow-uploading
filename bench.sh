@@ -10,7 +10,7 @@ printf -- "--b\r\n"\
 'Content-Disposition: form-data; name="f"; filename="payload"'\
 "\r\n\r\n"                                                    > payload
 
-dd if=/dev/zero bs=5 count=1                                 >> payload
+dd if=/dev/zero bs=5M count=1                                >> payload
 
 printf -- "\r\n--b--\r\n\r\n"                                >> payload
 
