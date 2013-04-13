@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if test not $*; then
-  echo "Usage: $0 HOST"
+  echo "Usage: $0 URL"
   echo "  e.g. $0 http://example.com/"
   exit 1
 fi
