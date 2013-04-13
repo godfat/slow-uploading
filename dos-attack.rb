@@ -17,8 +17,8 @@ class DoSAttack
 
   def initialize host, times=50, size=1024*1024
     @host    = host
-    @times   = times
-    @size    = size
+    @times   = times.to_i
+    @size    = size .to_i
 
     @socks   = {}
     @payload =
