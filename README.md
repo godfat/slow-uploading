@@ -49,4 +49,4 @@ This benchmark would run `ab -n 10 -c 5` with 5M payload.
 ## How to Switch to Rainbows!?
 
 Edit `Procfile` with `sed s/unicorn/rainbows/g` and you're done. See
-`rainbows` branch if you don't get it.
+[rainbows](https://github.com/godfat/slow-uploading/tree/rainbows) branch if you don't get it.
