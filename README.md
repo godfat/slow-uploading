@@ -268,7 +268,7 @@ block the worker from processing the other fast clients.
 ## Why Is It Happening?
 
 According to this document:
-[HTTP Routing and the Routing Mesh: Request buffering](https://devcenter.heroku.com/articles/http-routing#request-buffering)
+[HTTP Routing and the Routing Mesh: Request buffering](https://devcenter.heroku.com/articles/http-routing#request-buffering).
 Cedar stack's routers (reverse proxies) won't be buffering the
 request body, which would make Unicorn very inefficient for slow
 clients, since it is assuming all clients are fast client. By fast
@@ -291,7 +291,7 @@ Some quotes:
 > blocking I/O. Our processing model is the antithesis of more
 > modern (and theoretically more efficient) server processing
 > models using threads or non-blocking I/O with events.
-> [...]
+> \[...\]
 > Like Mongrel, neither keepalive nor pipelining are supported.
 > These aren’t needed since Unicorn is only designed to serve
 > fast, low-latency clients directly. Do one thing, do it well;
