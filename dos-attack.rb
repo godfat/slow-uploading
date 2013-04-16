@@ -97,5 +97,5 @@ end
 
 attack = DoSAttack.new(*ARGV)
 attack.run
-trap('INT') { attack.terminate; Thread.main.wakeup }
+trap('INT'){ attack.terminate; Thread.main.wakeup }
 sleep
