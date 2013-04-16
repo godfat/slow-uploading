@@ -1,6 +1,11 @@
 
 # Demonstration for Slow Uploading Issue on Heroku Cedar Stack with Unicorn
 
+TL;DR: To address slow uploading issue for Unicorn, either use Nginx or
+Rainbows! with EventMachine (until something could replace EventMachine).
+
+## The Example Application
+
 We take this very simple application which parses POST body as an example:
 
 ``` ruby
@@ -18,33 +23,20 @@ You can simply push this repository to Heroku to run it.
 
 This script would do a very simple DoS attack against applications
 running with Unicorn and parsing POST body on Heroku Cedar stack.
-(Make sure you have `celluloid-io` installed before running this script:
-`gem install celluloid-io`)
+(Make sure you have `celluloid-io` installed and patched with this
+[pull request](https://github.com/celluloid/celluloid-io/pull/52)
+before running this script: `gem install celluloid-io`)
 
     ./dos-attack.rb your-app.herokuapp.com
 
-It would make 50 concurrent requests with 1M payload to the host. Running
-this command and launch your browser and hit `http://your-app.herokuapp.com/`.
-With Unicorn running, you can see the application is blocked by the script,
-making it unavailable to your browser.
+It would make 50 concurrent requests with 1M payload to the host slowly,
+and 50 concurrent fast requests which should be responded immediately.
+With Unicorn running, you can see the application is blocked by the
+slow uploading, making the server respond slowly to other fast clients.
 
-Switching to Rainbows! with EventMachine would solve this issue. However,
-this could only solve slow clients issue, but not head-of-queue blocking
-issue. If your application is running slowly, you would need threads to
-address it. If you don't want to use threads, Nginx would be your best
-friend.
-
-Here's a simple [Rainbows! config with EventMachine and a thread pool](https://github.com/godfat/ruby-server-exp/blob/master/config/rainbows-em-thread-pool.rb).
-I'm working on merging this back to the official repository. However, I
-cannot make all tests passed. The failing test is against pipelined large
-chunked requests. The current work is located at [my branch](https://github.com/godfat/rainbows/pull/2). Nevertheless, this is a very rare case, there
-might be no one using that. So I guess it is ok.
-
-## Trivial Benchmark
-
-This benchmark would run `ab -n 10 -c 5` with 5M payload.
-
-    ./bench.sh http://your-app.herokuapp.com/
+Switching to Rainbows! with EventMachine would solve this issue. Any
+fast clients could get the response fast, and let slow clients get
+responses slowly as we would expect.
 
 ## How to Switch to Rainbows!?
 
@@ -258,3 +250,110 @@ Edit `Procfile` with `sed s/unicorn/rainbows/g` and you're done. See
      Slow Upload: Server:  0.005483  Client: 44.088135
      Slow Upload: Server:  0.012956  Client: 45.323259
      Slow Upload: Server:  0.013261  Client: 46.360929
+
+You can see there's a huge difference between running Unicorn or
+Rainbows! with EventMachine. With Unicorn, the `diff` time would be
+quite long, because Unicorn doesn't read the body for you. The read
+time would be spent in the application. That means, the Unicorn worker
+is blocked until the uploading is done. There could be a sort of DoS
+attack which sends a ton of requests with never ending body to
+applications whichever try to parse the request body with Unicorn.
+
+While running Rainbows! with EventMachine, the `diff` time would be
+quite short, because Rainbows! would be buffering the body from the
+request, and only pass it down to the application whenever it is fully
+buffered. The read time would be spent in EventMachine, which won't
+block the worker from processing the other fast clients.
+
+## Why Is It Happening?
+
+According to this document:
+[HTTP Routing and the Routing Mesh: Request buffering](https://devcenter.heroku.com/articles/http-routing#request-buffering)
+Cedar stack's routers (reverse proxies) won't be buffering the
+request body, which would make Unicorn very inefficient for slow
+clients, since it is assuming all clients are fast client. By fast
+clients, it usually means clients from internal or local network.
+
+That is, by using Unicorn, we would want something like Nginx which
+would fully buffer all requests for all the clients around the world.
+You can find this information from Unicorn's documents.
+
+[PHILOSOPHY](http://unicorn.bogomips.org/PHILOSOPHY.html),
+and [DESIGN](http://unicorn.bogomips.org/DESIGN.html).
+
+Some quotes:
+
+> Instead of attempting to be efficient at serving slow clients,
+> unicorn relies on a buffering reverse proxy to efficiently deal
+> with slow clients.
+>
+> unicorn uses an old-fashioned preforking worker model with
+> blocking I/O. Our processing model is the antithesis of more
+> modern (and theoretically more efficient) server processing
+> models using threads or non-blocking I/O with events.
+> [...]
+> Like Mongrel, neither keepalive nor pipelining are supported.
+> These aren’t needed since Unicorn is only designed to serve
+> fast, low-latency clients directly. Do one thing, do it well;
+> let nginx handle slow clients.
+
+Recently there's a discussion on
+[Unicorn's mailing list](http://rubyforge.org/mailman/listinfo/mongrel-unicorn)
+regarding this issue. Here's the thread:
+[Unicorn hangs on POST request](http://comments.gmane.org/gmane.comp.lang.ruby.unicorn.general/1724)
+
+[According to Tom Pesman](http://permalink.gmane.org/gmane.comp.lang.ruby.unicorn.general/1734):
+
+> I've some new information. Heroku buffers the headers of a HTTP
+> request but it doesn't buffer the body of POST requests. Because of
+> that I switched to Rainbows! and the responsiveness of the application
+> increased dramatically.
+
+They switched to Rainbows! with EventMachine, which would fully
+buffer the request/response as in Nginx but with EventMachine,
+the responsiveness of the application increased dramatically.
+
+The current maintainer of Unicorn and Rainbows! responded with:
+[Re: Unicorn hangs on POST request](http://permalink.gmane.org/gmane.comp.lang.ruby.unicorn.general/1735)
+
+## Further Discussion
+
+However, Rainbows! with EventMachine would still be suffering
+from head-of-queue blocking issue. That is, suppose our app
+would do some heavy computing, since EventMachine is single
+threaded, at the time we're computing, the whole process is
+still blocking there and therefore cannot keep working for
+other clients at the same time.
+
+This could be further solved by using threads together, like
+using CoolioThreadPool or CoolioThreadSpawn. But cool.io is
+not actively maintained at the moment, and the author Tony
+Arcieri headed the development to celluloid (which is the
+core of Sidekiq), celluloid-io, and nio4r.
+
+Last time I tried cool.io (probably two years ago), it even
+gave me some assertion failures. I don't know if anyone is
+using cool.io on production, either. Even though
+[Eric Wong is willing to patch cool.io](http://permalink.gmane.org/gmane.comp.lang.ruby.unicorn.general/1739)
+if we can provide reproducible cases, I would rather try to
+write a celluloid-io based model for Rainbows! since that's
+the way the community is heading to at the moment.
+
+All after all, we're using a combination of EventMachine
+and thread pool strategy, which is something like this:
+[Rainbows! config with EventMachine and a thread pool](https://github.com/godfat/ruby-server-exp/blob/master/config/rainbows-em-thread-pool.rb).
+I was once working on making this merge back to Rainbows!.
+The unfinished work is located at
+[my branch](https://github.com/godfat/rainbows/pull/2).
+It's almost done, but I failed to make one test case pass:
+
+> "send big pipelined chunked requests"
+
+I believe not many people are doing pipelined requests
+combined with big chunked data, and probably this won't
+even work with Heroku's Erlang routers, so I think it
+might be fine to use it on Heroku. However, if I cannot
+make it pass, I don't think it could be merged. The thing
+which makes it quite hard is the EventMachine API. There's
+no easy way to tell EventMachine to pause a connection,
+leaving the data buffered at kernel level.
