@@ -79,14 +79,17 @@ class DoSAttack
     res = sock.readpartial(4096)
     printf "#{msg}Server: %9f  Client: %9f\n",
            res[/\r\n\r\n(.*)/, 1].to_f, (Time.now - now).to_f
+  rescue IOError, SystemCallError
+    msg ||= ' '*14
+    printf "#{msg}Server: %9s  Client: %9s\n", 'failed', 'failed'
   ensure
     cleanup(sock)
   end
 
   def cleanup sock
     begin
-      sock.close
-    rescue EOFError
+      sock.close if sock
+    rescue IOError, SystemCallError
     end
     @socks.delete(sock.object_id)
     if @socks.empty?
