@@ -72,7 +72,8 @@ class DoSAttack
 
   def request
     now  = Time.now
-    sock = TCPSocket.new(@host, 80)
+    port = (@host[/:(\d+)/, 1] || 80).to_i
+    sock = TCPSocket.new(@host.sub(/:.+/, ''), port)
     @socks[sock.object_id] = sock
     msg = yield(sock)
     res = sock.readpartial(4096)
